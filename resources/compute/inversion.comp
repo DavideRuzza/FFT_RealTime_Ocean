@@ -1,0 +1,31 @@
+#version 460
+
+layout(local_size_x=16, local_size_y=16) in;
+
+layout(rgba32f, binding=0) readonly uniform image2D ping;
+layout(rgba32f, binding=1) writeonly uniform image2D pong;
+
+
+vec2 multC(vec2 a, vec2 b){
+    return vec2(a.x*b.x-a.y*b.y, a.x*b.y+a.y*b.x);
+}
+
+uniform int N;
+
+void main(){
+
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+
+    float perms[] = {-1.0, 1.0};
+    int index = int(mod((int(p.x+ p.y)), 2));
+    float perm = perms[index];
+
+    vec4 surf = imageLoad(ping, p);
+    
+    float h = perm*surf.x/N/N;
+    // h=(h+1.)/2.;
+    float h1 = perm*surf.b/N/N;
+    imageStore(pong, p, vec4(h, h1, 0.0, 0.0));
+    
+
+}

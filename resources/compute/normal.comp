@@ -1,0 +1,46 @@
+#version 460
+
+layout(local_size_x=16, local_size_y=16) in;
+
+layout(rgba32f, binding=0) uniform image2D h_z;
+layout(rgba32f, binding=1) uniform image2D d_xy;
+layout(rgba32f, binding=2) uniform image2D normal;
+// layout(rgba32f, binding=3) writeonly uniform image2D jacobian;
+
+uniform int N;
+uniform float scale;
+uniform float choppy;
+uniform float wave_scale;
+
+ivec2 period(ivec2 p, int N){ // periodic boundary condition
+    ivec2 p1 = p;
+    if (p.x>=N) p1.x = p.x-N;
+    if (p.x<0) p1.x = p.x+N;
+    if (p.y>=N) p1.y = p.y-N;
+    if (p.y<0) p1.y = p.y+N;
+
+    return p1;
+}
+
+void main(){
+
+    float dl = float(scale/float(N)); //differential scale
+    
+    int s = 1;
+    ivec2 dx = s*ivec2(1, 0);
+    ivec2 dy = s*ivec2(0, 1);
+
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+
+    ivec2 D = ivec2(choppy*imageLoad(d_xy, p).rg);
+    float pdx = (imageLoad(h_z, period(p+dx+D, N)).r-imageLoad(h_z, period(p-dx+D, N)).r); // partial derivative x
+    float pdy = (imageLoad(h_z, period(p+dy+D, N)).r-imageLoad(h_z, period(p-dy+D, N)).r);
+
+    vec3 T = normalize(vec3(0.0, 2*s*dl, pdx*wave_scale));
+    vec3 B = normalize(vec3(2*s*dl, 0.0, pdy*wave_scale));
+
+    vec3 N = normalize(-cross(T, B));
+    imageStore(normal, p, vec4(N, 0.0));
+    
+
+}

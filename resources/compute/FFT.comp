@@ -1,0 +1,51 @@
+#version 460
+
+layout(local_size_x=16, local_size_y=16) in;
+
+layout(rgba32f, binding=0) readonly uniform image2D twiddle;
+layout(rgba32f, binding=1) readonly uniform image2D ping;
+layout(rgba32f, binding=2) writeonly uniform image2D pong;
+
+uniform int stage;
+uniform int Vertical;
+
+vec2 multC(vec2 a, vec2 b){
+    return vec2(a.x*b.x-a.y*b.y, a.x*b.y+a.y*b.x);
+}
+
+void main(){
+
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+    vec2 uv = vec2(p)/vec2(imageSize(ping));
+
+    //vertical
+    if (Vertical==1){
+        vec4 twi = imageLoad(twiddle, ivec2(stage, p.y));
+        vec2 W = twi.rg;
+
+        // i can perform 2 individual fft at the same time bacause i have 4 channels
+        vec2 G = imageLoad(ping, ivec2(p.x, twi.z)).rg;
+        vec2 H = imageLoad(ping, ivec2(p.x, twi.w)).rg;
+        vec2 X = G + multC(W, H);
+
+        vec2 G1 = imageLoad(ping, ivec2(p.x, twi.z)).ba;
+        vec2 H1 = imageLoad(ping, ivec2(p.x, twi.w)).ba;
+        vec2 X1 = G1 + multC(W, H1);
+
+        imageStore(pong, p, vec4(X, X1));
+    } else {
+        vec4 twi = imageLoad(twiddle, ivec2(stage, p.x));
+        vec2 W = twi.rg;
+
+        vec2 G = imageLoad(ping, ivec2(twi.z, p.y)).rg;
+        vec2 H = imageLoad(ping, ivec2(twi.w, p.y)).rg;
+        vec2 X = G + multC(W, H);
+
+        vec2 G1 = imageLoad(ping, ivec2(twi.z, p.y)).ba;
+        vec2 H1 = imageLoad(ping, ivec2(twi.w, p.y)).ba;
+        vec2 X1 = G1 + multC(W, H1);
+
+        imageStore(pong, p, vec4(X, X1));
+    }
+
+}
