@@ -44,29 +44,57 @@ class MainWin(OrbitCamera):
         super().__init__(*args, **kwargs)
 
 
-        self.N = 128
+        self.N = 256
         self.log2N = int(np.log2(self.N))
+
+        self.L = 100    # patch size
+
+        self.U10 = 10.0     # wind speed
+        self.wind_dir = np.array([1.0, 1.0])    # wind direction
+        self.wind_dir/=np.linalg.norm(self.wind_dir)
+
+        self.choppiness = 7.5   # choppiness of the waves
 
         self.sph = cube()
         self.quad = quad_fs()
         self.debug3d_prog = self.load_program("shader/debug3d.glsl")
         self.debug_prog = self.load_program("shader/debug.glsl")
 
-
         self.debug3d_prog["Proj"].write(self.proj_mat.astype('f4'))
         self.debug3d_prog["View"].write(self.view_mat.astype('f4'))  
         
+        self.spectrum_prog = self.load_program("shader/spectrum.glsl")
+        
+        self.spectrum_prog["N"] = self.N
+        self.spectrum_prog["L"] = self.L
+        # self.spectrum_prog["w_speed"]
         # noise texture
-        self.noise_data = np.random.normal(size=(self.N, self.N, 2)).astype('f4')
-        self.noise_tex = self.ctx.texture((self.N, self.N), components=2, data=self.noise_data.tobytes(), dtype='f4')
-        self.noise_tex.filter = mgl.NEAREST, mgl.NEAREST
+        self.noise_data = np.random.normal(size=(self.N, self.N, 4)).astype('f4')
+        self.noise_tex = self.to_texture(self.noise_data)
 
         self.ctx.enable(mgl.DEPTH_TEST)
 
+        self.fbo_tex = self.ctx.texture((self.N, self.N), components=4, dtype='f4')
+        self.fbo_tex.filter = mgl.NEAREST, mgl.NEAREST
+        self.fbo = self.ctx.framebuffer(color_attachments=(self.fbo_tex))
+
+    def to_texture(self, data: np.ndarray, dtype='f4'):
+        tex = self.ctx.texture((data.shape[0], data.shape[1]), components=data.shape[2], data=data.tobytes(), dtype=dtype)
+        tex.filter = mgl.NEAREST, mgl.NEAREST
+        return tex
+
     def render_cam(self, t, dt):
-        self.wnd.clear(0.0)
-        self.noise_tex.use(0)
+
         # self.wnd.fbo.viewport = (0, 0, self.N, self.N)
+        self.fbo.use()
+        self.fbo.clear()
+        self.noise_tex.use(0)
+        self.quad.render(self.spectrum_prog)
+        
+        self.spectrum_prog["t"] = t
+        self.wnd.fbo.use()
+        self.wnd.clear(0.0)
+        self.fbo_tex.use(0)
         self.quad.render(self.debug_prog)
         # self.sph.render(self.debug3d_prog)
         
